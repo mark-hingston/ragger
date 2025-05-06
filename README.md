@@ -88,9 +88,9 @@ RETRY_THRESHOLD=0.6 # Score below which the workflow will attempt to retry gener
 
 ## Workflow Overview (`ragWorkflow`)
 
-The core logic is orchestrated by the `ragWorkflow`. Here's a step-by-step breakdown:
+The `ragWorkflow` is orchestrated by the `workflowAgent`. The core logic within the workflow is as follows:
 
-1.  **Trigger:** Receives the `userQuery`.
+1.  **Trigger:** The `workflowAgent` receives the `userQuery` and triggers the `ragWorkflow` using the `ragWorkflowTool`. The workflow then receives the `userQuery`.
 2.  **Enhance Query (HyDE):** Uses `queryEnhancerAgent` to generate a `hypotheticalDocument` based on the `userQuery`.
 3.  **Decide Retrieval:** Uses `retrievalRouterAgent` (fed the original `userQuery`) to determine the retrieval `strategy` (e.g., 'basic', 'metadata', 'graph', 'documentation', 'example') and potentially a Qdrant `filter`.
 4.  **Get Context (Conditional Retrieval & Reranking):** This central step calls the `retrievalAgent`, passing the `userQuery`, `hypotheticalDocument`, `strategy`, and `filter`. The `retrievalAgent` is invoked with an explicit `toolChoice` option to select either `vectorQueryTool` or `graphRAGTool` based on the `strategy` determined in the previous step. The `hypotheticalDocument` is used as the input for the selected tool.
@@ -139,28 +139,28 @@ graph TD
 
 ## How to Use
 
-Once the development server is running (`mastra dev`), you can trigger the workflow via its API endpoint.
+Once the development server is running (`mastra dev`), you can interact with the `workflowAgent` to trigger the `ragWorkflow`.
 
-**Endpoint:** `POST /api/vnext_workflows/ragWorkflow/start-async`
+The `workflowAgent` is typically exposed via an API endpoint. You can interact with it using tools like `curl`, Postman, or the Mastra Dev Playground UI (usually accessible at the server's base URL).
+
+**Example Interaction (using a hypothetical agent endpoint):**
+
+Assuming the `workflowAgent` is exposed at `/api/agents/workflowAgent/run`, you could trigger it with a POST request:
+
+**Endpoint:** `POST /api/agents/workflowAgent/run`
 **Method:** `POST`
 **Headers:** `Content-Type: application/json`
 **Body:**
 
 ```json
 {
-  "inputData": {
-    "userQuery": "How is authentication handled in the Python services?"
+  "input": {
+    "userQuery": "How is authentication handled in the WebApi?"
   }
 }
 ```
 
-The server will execute the workflow asynchronously and return a run ID. You would typically need another mechanism (like polling a status endpoint or websockets, if implemented) to get the final result (`finalAnswer`, `evaluationScore`, `isGrounded`). The console logs during `mastra dev` will show the progress and final evaluation.
-
-## Testing
-
-*   Unit tests can be written for individual tools (embedding, query, reranking) using a testing framework like Vitest or Jest.
-*   Integration tests can be created for the `ragWorkflow` by mocking tool/agent responses or using test instances of dependencies (like a local Qdrant).
-*   Mastra's evaluation features (`@mastra/evals`) can be integrated into CI pipelines to automatically test the quality of the RAG output against predefined test cases. See `docs/evals/running-in-ci.mdx`.
+The agent will process the input and use the `ragWorkflowTool` to start the workflow. The server will execute the workflow asynchronously. You would typically need another mechanism (like polling a status endpoint or websockets, if implemented) to get the final result (`finalAnswer`, `evaluationScore`, `isGrounded`). The console logs during `mastra dev` will show the progress and final evaluation.
 
 ## Deployment
 

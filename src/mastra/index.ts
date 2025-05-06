@@ -8,6 +8,7 @@ import {
   retrievalRouterAgent,
   queryEnhancerAgent,
   retrievalAgent,
+  workflowAgent
 } from "./agents";
 import { ragWorkflow } from "./workflows/ragWorkflow";
 
@@ -24,7 +25,8 @@ export const mastra = new Mastra({
     evaluationAgent,
     retrievalRouterAgent,
     queryEnhancerAgent,
-    retrievalAgent
+    retrievalAgent,
+    workflowAgent
   },
   vnext_workflows: {
     ragWorkflow,

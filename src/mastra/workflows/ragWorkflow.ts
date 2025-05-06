@@ -7,9 +7,11 @@ import { decideRetrievalStep } from "./steps/decideRetrievalStep";
 import { generateResponseStep } from "./steps/generateResponseStep";
 import { evaluateAndRetryStep } from "./steps/evaluateAndRetryStep";
 
+export const RAG_WORKFLOW_ID = "ragWorkflow";
+
 // --- Workflow Definition ---
 export const ragWorkflow = createWorkflow({
-  id: "ragWorkflow",
+  id: RAG_WORKFLOW_ID,
   inputSchema: z.object({
     userQuery: z.string(),
   }),
