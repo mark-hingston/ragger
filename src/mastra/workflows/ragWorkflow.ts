@@ -46,10 +46,11 @@ ragWorkflow
   // to retrieve relevant context using the appropriate tool (via the retrievalAgent).
   // This step will wait for both decideRetrievalStep and enhanceQueryStep to complete.
   .map({
-    userQuery: { initData: ragWorkflow, path: "userQuery" }, // Keep userQuery for getContextStep input schema
+    userQuery: { initData: ragWorkflow, path: "userQuery" },
     queryText: { step: enhanceQueryStep, path: "hypotheticalDocument" },
-    strategy: { step: decideRetrievalStep, path: "strategy" },
-    filter: { step: decideRetrievalStep, path: "filter" },
+    // Map the entire output object of decideRetrievalStep to the 'decision' input
+    // Using path: '.' based on error messages requiring a path property
+    decision: { step: decideRetrievalStep, path: '.' },
   })
   .then(getContextStep)
 

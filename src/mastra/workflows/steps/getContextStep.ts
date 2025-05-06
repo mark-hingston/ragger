@@ -5,11 +5,11 @@ import { retrievalDecisionSchema, RETRIEVAL_AGENT_NAME } from "../../agents";
 import { WorkflowError } from "../../errors";
 import { isRetryableError } from "../../utils/errorUtils";
 
+// Expect the full decision object from the previous step
 const inputSchema = z.object({
   userQuery: z.string(),
   queryText: z.string(),
-  strategy: retrievalDecisionSchema.shape.strategy,
-  filter: z.record(z.any()).nullable(),
+  decision: retrievalDecisionSchema, // Expect the whole refined schema object
 });
 
 const outputSchema = z.object({ relevantContext: z.string() });
@@ -26,12 +26,28 @@ export const getContextStep = createStep({
   execute: async ({ inputData, runtimeContext, mastra }): Promise<OutputType> => {
     const stepId = "getContext";
     console.debug(`Executing step: ${stepId}`);
+    let strategy: z.infer<typeof retrievalDecisionSchema>['strategy'] | undefined;
+    let hypotheticalDocument: string | undefined;
+    let filter: z.infer<typeof retrievalDecisionSchema>['filter'] | undefined;
+    let userQuery: string | undefined;
+
     try {
       if (!mastra) {
         throw new Error("Mastra instance not available in step context.");
       }
 
-      const { strategy, queryText: hypotheticalDocument, filter, userQuery } = inputData as InputType;
+      // Destructure from the input, including the nested decision object
+      const { decision, queryText: localQueryText, userQuery: localUserQuery } = inputData;
+      strategy = decision.strategy;
+      filter = decision.filter;
+      hypotheticalDocument = localQueryText;
+      userQuery = localUserQuery;
+
+
+      // Ensure strategy is defined before using it
+      if (!strategy) {
+        throw new Error("Strategy is undefined after destructuring inputData.");
+      }
 
       console.log(`Getting context using strategy: ${strategy}`);
       console.log(`DEBUG [getContextStep]: Input received: ${JSON.stringify(inputData, null, 2)}`);
@@ -57,6 +73,8 @@ export const getContextStep = createStep({
       }
 
       // Execute the tool call, passing args in the message content
+      // Pass structured tool arguments directly
+      // Revert to original generate call format (stringified JSON in content)
       response = await agent.generate([{
         role: 'user',
         content: JSON.stringify({ tool: toolName, args: toolArgs })
@@ -68,9 +86,12 @@ export const getContextStep = createStep({
       // Fallback: if no context with filter, try without filter
       if (strategy !== 'graph' && response.object?.length === 0 && filter && Object.keys(filter).length > 0) {
         console.warn(`No context found with filter for strategy '${strategy}'. Retrying without filter.`);
+console.log(`Fallback retrieval triggered for query: ${userQuery}`);
         toolName = 'vectorQueryTool';
         toolArgs = { queryText: hypotheticalDocument };
 
+        // Pass structured tool arguments directly for fallback
+        // Revert to original generate call format for fallback
         response = await agent.generate([{
           role: 'user',
           content: JSON.stringify({ tool: toolName, args: toolArgs })
@@ -85,17 +106,26 @@ export const getContextStep = createStep({
       const toolResults = response.toolResults;
 
       if (Array.isArray(toolResults)) {
+          // Process tool results, handling potential structure differences
           const allContextItems = toolResults.flatMap(toolResult => {
-              if (toolResult.toolName === toolName && toolResult.result?.relevantContext) {
-                  return toolResult.result.relevantContext;
+              if (toolResult.toolName === toolName && toolResult.result) {
+                  // Check if result itself is the array (e.g., graph tool)
+                  if (Array.isArray(toolResult.result)) {
+                      return toolResult.result;
+                  }
+                  // Check if result.relevantContext is the array (e.g., vector tool)
+                  if (Array.isArray(toolResult.result.relevantContext)) {
+                      return toolResult.result.relevantContext;
+                  }
               }
-              return [];
+              return []; // Return empty array if no relevant context found in this result
           });
 
-          if (Array.isArray(allContextItems)) {
-              finalContext = allContextItems.map(item => {
-                  const filePath = item.source || 'unknown file';
-                  const content = item.text || '';
+          if (Array.isArray(allContextItems) && allContextItems.length > 0) {
+              finalContext = allContextItems.map((item: any) => {
+                  // Adaptively get source and text/content based on potential properties
+                  const filePath = item.source || item.metadata?.filePath || 'unknown file';
+                  const content = item.text || item.content || ''; // Check both 'text' and 'content'
                   return `File: ${filePath}\n\`\`\`\n${content}\n\`\`\`\n---\n`;
               }).join('');
           }
@@ -114,8 +144,9 @@ export const getContextStep = createStep({
       console.error(`Error in step ${stepId}:`, error);
       const isRetryable = isRetryableError(error);
 
+      // Include strategy in the error message for better context
       throw new WorkflowError(
-        `Failed to get context in step ${stepId}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get context in step ${stepId} with strategy '${strategy}': ${error instanceof Error ? error.message : String(error)}`,
         isRetryable
       );
     }

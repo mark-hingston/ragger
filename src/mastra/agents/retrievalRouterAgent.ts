@@ -27,7 +27,16 @@ export const retrievalDecisionSchema = z.object({
       .number()
       .optional()
       .describe("Optional confidence score for the decision (0.0 to 1.0)."),
-});
+}).refine(
+  (data) =>
+    data.strategy === "graph" || data.strategy === "basic"
+      ? data.filter === null
+      : true,
+  {
+    message: "Filter must be null for graph/basic strategies",
+    path: ["filter"], // Specify the path of the error
+  }
+);
 
 export const retrievalRouterAgent = new Agent({
   name: RETRIEVAL_ROUTER_AGENT_NAME,

@@ -38,7 +38,12 @@ Respond ONLY with a JSON object matching the specified output schema. Do not add
         .min(0)
         .max(1)
         .describe("Score for structure and understandability."),
-      overall: z.number().min(0).max(1).describe("Overall assessment score."),
+      overall: z
+        .number()
+        .min(0)
+        .max(1)
+        .refine((v) => v >= 0 && v <= 1)
+        .describe("Overall assessment score."),
       reasoning: z.string().describe("Brief explanation for the scores."),
     }),
   },

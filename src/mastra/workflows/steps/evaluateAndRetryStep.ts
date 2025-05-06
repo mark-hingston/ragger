@@ -10,6 +10,7 @@ import { embeddingModel } from "../../providers";
 import { isRetryableError } from "../../utils/errorUtils";
 
 const RETRY_THRESHOLD = env.RETRY_THRESHOLD;
+const MAX_CONTEXT_LENGTH = 8000; // Max characters for context to prevent overflow
 
 // --- Helper Functions ---
 async function isAnswerGrounded(
@@ -126,6 +127,20 @@ export const evaluateAndRetryStep = createStep({
   execute: async ({ inputData, mastra, runtimeContext }) => {
     const runId = (runtimeContext as any)?.runId;
     console.log(`[${evaluateAndRetryStep.id}${runId ? ` | RunID: ${runId}` : ''}] Executing step...`);
+
+    // --- Empty Context Handling ---
+    if (!inputData.relevantContext || !inputData.relevantContext.trim()) {
+      console.warn(`[${evaluateAndRetryStep.id}${runId ? ` | RunID: ${runId}` : ''}] Empty context received. Returning default response.`);
+      return { finalAnswer: "No relevant context found to generate an answer." };
+    }
+
+    // --- Context Truncation ---
+    const truncatedContext = inputData.relevantContext.slice(0, MAX_CONTEXT_LENGTH);
+    if (inputData.relevantContext.length > MAX_CONTEXT_LENGTH) {
+        console.warn(`[${evaluateAndRetryStep.id}${runId ? ` | RunID: ${runId}` : ''}] Context truncated from ${inputData.relevantContext.length} to ${MAX_CONTEXT_LENGTH} characters.`);
+    }
+
+
     const localRagAgent = mastra?.getAgent(RAG_AGENT_NAME);
     if (!localRagAgent)
       throw new Error("RagAgent not found in Mastra instance.");
@@ -137,7 +152,7 @@ export const evaluateAndRetryStep = createStep({
       let finalEvalResult = await evaluateAnswer(
         inputData.generatedAnswer,
         inputData.userQuery,
-        inputData.relevantContext,
+        truncatedContext, // Use truncated context
         mastra,
         runtimeContext
       );
@@ -151,7 +166,7 @@ export const evaluateAndRetryStep = createStep({
           `Initial score ${finalEvalResult.score} < ${RETRY_THRESHOLD}. Regenerating response.`
         );
 
-        const retryPrompt = `User Query: ${inputData.userQuery}\n\nContext:\n${inputData.relevantContext}\n\nPrevious Answer (Score: ${finalEvalResult.score}): "${finalEvalResult.answer}"\nReasoning for low score: ${finalEvalResult.reasoning}\n\nPlease provide an improved answer based *only* on the provided context, addressing the reasons for the low score. Answer:`;
+        const retryPrompt = `User Query: ${inputData.userQuery}\n\nContext:\n${truncatedContext}\n\nPrevious Answer (Score: ${finalEvalResult.score}): "${finalEvalResult.answer}"\nReasoning for low score: ${finalEvalResult.reasoning}\n\nPlease provide an improved answer based *only* on the provided context, addressing the reasons for the low score. Answer:`; // Use truncated context
 
         let regeneratedAnswer: string;
         try {
@@ -175,7 +190,7 @@ export const evaluateAndRetryStep = createStep({
         finalEvalResult = await evaluateAnswer(
           regeneratedAnswer,
           inputData.userQuery,
-          inputData.relevantContext,
+          truncatedContext, // Use truncated context
           mastra,
           runtimeContext
         );
