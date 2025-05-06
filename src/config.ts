@@ -14,6 +14,7 @@ export const env = cleanEnv(process.env, {
   LLM_PROVIDER_RESOURCE_NAME: str(),
   LLM_PROVIDER_API_KEY: str(),
   LLM_DEPLOYMENT: str(),
+  RERANK_DEPLOYMENT: str(),
   RETRY_THRESHOLD: num({ default: 0.6 }),
   GROUNDEDNESS_THRESHOLD: num({ default: 0.7, desc: 'Cosine similarity threshold for groundedness check' }),
 });

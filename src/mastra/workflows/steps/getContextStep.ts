@@ -1,3 +1,4 @@
+
 import { createStep } from "@mastra/core/workflows/vNext";
 import { z } from "zod";
 import { retrievalDecisionSchema, RETRIEVAL_AGENT_NAME } from "../../agents";
@@ -81,14 +82,23 @@ export const getContextStep = createStep({
 
       // Format the context
       let finalContext = "";
-      const contextItems = response.object;
+      const toolResults = response.toolResults;
 
-      if (Array.isArray(contextItems)) {
-          finalContext = contextItems.map(item => {
-              const filePath = item.metadata?.filePath || 'unknown file';
-              const content = item.content || '';
-              return `File: ${filePath}\n\`\`\`\n${content}\n\`\`\`\n---\n`;
-          }).join('');
+      if (Array.isArray(toolResults)) {
+          const allContextItems = toolResults.flatMap(toolResult => {
+              if (toolResult.toolName === toolName && toolResult.result?.relevantContext) {
+                  return toolResult.result.relevantContext;
+              }
+              return [];
+          });
+
+          if (Array.isArray(allContextItems)) {
+              finalContext = allContextItems.map(item => {
+                  const filePath = item.source || 'unknown file'; // Assuming 'source' is the file path
+                  const content = item.text || ''; // Assuming 'text' is the content
+                  return `File: ${filePath}\n\`\`\`\n${content}\n\`\`\`\n---\n`;
+              }).join('');
+          }
       } else if (typeof response.text === 'string' && response.text.trim() !== '') {
            // Fallback if structured data isn't available but text is
            console.warn("Tool result was not structured as expected. Using raw text result.");

@@ -7,6 +7,7 @@ export const llmProvider = createAzure({
   apiKey: env.LLM_PROVIDER_API_KEY,
 });
 export const llmModel = llmProvider(env.LLM_DEPLOYMENT);
+export const rerankModel = llmProvider(env.RERANK_DEPLOYMENT);
 
 export const embeddingProvider = createOpenAICompatible({
   name: env.EMBEDDING_PROVIDER_NAME,

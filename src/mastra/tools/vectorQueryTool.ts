@@ -1,6 +1,6 @@
 import { createVectorQueryTool } from "@mastra/rag";
 import { env } from "../../config";
-import { llmModel, embeddingModel } from "../providers";
+import { rerankModel, embeddingModel } from "../providers";
 import { QDRANT_STORE_NAME } from "../../config";
 
 export const vectorQueryTool = createVectorQueryTool({
@@ -12,7 +12,7 @@ export const vectorQueryTool = createVectorQueryTool({
   model: embeddingModel,
   enableFilter: true,
   reranker: {
-    model: llmModel,
+    model: rerankModel,
     options: {
       topK: 5,
       weights: {

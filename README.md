@@ -51,8 +51,8 @@ Create a `.env` file in the project root and populate it with your credentials a
 # LLM Provider Configuration (Currently targetting Azure OpenAI)
 LLM_PROVIDER_RESOURCE_NAME=your_azure_resource
 LLM_DEPLOYMENT=your_deployment
+RERANK_DEPLOYMENT=your_deployment
 LLM_PROVIDER_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx # Your API key for the LLM provider
-LLM_DEPLOYMENT=gpt-4o-mini # The specific model to use for generation/evaluation/routing
 
 # Embedding Provider Configuration (Can be the same or different from LLM)
 EMBEDDING_PROVIDER_NAME=custom
