@@ -1,7 +1,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy Node.js project to Azure Function App - repokb (Corrected)
+name: Build and deploy Node.js project to Azure Function App - repokb
 
 on:
   push:
@@ -10,12 +10,8 @@ on:
   workflow_dispatch:
 
 env:
-  # Set this to the directory containing your package.json where you run 'npm install' and build
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
-  # Set this to the node version your Function App uses in Azure
-  NODE_VERSION: '20.x' # Updated Node version as 22.x might not be fully available/stable everywhere yet, adjust if needed.
-  # Define the specific output directory from your build
-  BUILD_OUTPUT_DIR: '.mastra/output'
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
+  NODE_VERSION: '22.x' # set this to the node version to use (supports 8.x, 10.x, 12.x)
 
 jobs:
   build:
@@ -32,69 +28,42 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: 'Resolve Project Dependencies and Build'
+      - name: 'Resolve Project Dependencies Using Npm'
         shell: bash
-        # Run commands within the function app's source directory
-        working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         run: |
+          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
           npm install
-          # Assuming 'npm run build' is the command that runs 'npx mastra build' or similar
-          # If not, replace 'npm run build' with 'npx mastra build'
-          npm run build
-          # Verify output directory exists
-          if [ ! -d "${{ env.BUILD_OUTPUT_DIR }}" ]; then
-             echo "Build output directory '${{ env.BUILD_OUTPUT_DIR }}' not found!"
-             exit 1
-          fi
+          npm run build --if-present
+          npm run test --if-present
+          popd
 
       - name: Zip artifact for deployment
-        shell: bash
-        run: |
-          SOURCE_DIR="${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/${{ env.BUILD_OUTPUT_DIR }}"
-          OUTPUT_ZIP="release.zip"
-          echo "Zipping contents of '$SOURCE_DIR' into '$OUTPUT_ZIP'"
-          # Change into the source directory
-          pushd "$SOURCE_DIR" || exit 1
-          # Zip the *contents* of the current directory (.)
-          zip ../../"$OUTPUT_ZIP" . -r
-          # Go back to the original directory
-          popd
+        run: zip release.zip ./* -r
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: release.zip # Upload the correctly zipped file
+          path: release.zip
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    environment: Production # Optional: Define environment if needed
-    permissions:
-      id-token: write # This is required for requesting the JWT via azure/login
-      # contents: read # Typically not needed when deploying a package
-
+    
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: node-app # Must match the upload name
+          name: node-app
 
-      # --- REMOVED Unzip step ---
-
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          # Use your actual secret names
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: 'Deploy to Azure Functions'
+      - name: Unzip artifact for deployment
+        run: unzip release.zip
+      
+      - name: 'Run Azure Functions Action'
         uses: Azure/functions-action@v1
         id: fa
         with:
           app-name: 'repokb'
-          # slot-name: 'Production' # Optional, defaults to production
-          # --- CORRECTED package parameter ---
-          package: release.zip # Deploy the downloaded zip file directly
+          slot-name: 'Production'
+          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_13E780EE61514FEE99C8DDC6595D625F }}
