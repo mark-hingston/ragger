@@ -94,8 +94,8 @@ export const getContextStep = createStep({
 
           if (Array.isArray(allContextItems)) {
               finalContext = allContextItems.map(item => {
-                  const filePath = item.source || 'unknown file'; // Assuming 'source' is the file path
-                  const content = item.text || ''; // Assuming 'text' is the content
+                  const filePath = item.source || 'unknown file';
+                  const content = item.text || '';
                   return `File: ${filePath}\n\`\`\`\n${content}\n\`\`\`\n---\n`;
               }).join('');
           }
