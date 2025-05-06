@@ -17,5 +17,6 @@ export const env = cleanEnv(process.env, {
   RERANK_DEPLOYMENT: str(),
   RETRY_THRESHOLD: num({ default: 0.6 }),
   GROUNDEDNESS_THRESHOLD: num({ default: 0.7, desc: 'Cosine similarity threshold for groundedness check' }),
+  HYDE_ENABLED: bool({ default: true, desc: 'Enable Hypothetical Document Embeddings (HyDE)' }),
 });
 export const QDRANT_STORE_NAME = "qdrantStore";

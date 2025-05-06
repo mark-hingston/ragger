@@ -3,6 +3,7 @@ import { createStep } from "@mastra/core/workflows/vNext";
 import { z } from "zod";
 import { QUERY_ENHANCER_AGENT_NAME } from "../../agents/queryEnhancerAgent";
 import { WorkflowError } from "../../errors";
+import { env } from "../../../config";
 
 // 1. Enhance Query (HyDE)
 export const enhanceQueryStep = createStep({
@@ -13,6 +14,11 @@ export const enhanceQueryStep = createStep({
   outputSchema: z.object({ hypotheticalDocument: z.string() }),
   execute: async ({ inputData, mastra, runtimeContext }) => {
     console.debug(`Executing step: ${enhanceQueryStep.id}`);
+    if (!env.HYDE_ENABLED) {
+      console.info("HyDE is disabled. Skipping query enhancement.");
+      return { hypotheticalDocument: inputData.userQuery };
+    }
+    console.info("HyDE is enabled. Enhancing query.");
     try {
       const agent = mastra?.getAgent(QUERY_ENHANCER_AGENT_NAME);
       if (!agent)
