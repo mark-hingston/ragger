@@ -98,7 +98,3 @@ jobs:
           # slot-name: 'Production' # Optional, defaults to production
           # --- CORRECTED package parameter ---
           package: release.zip # Deploy the downloaded zip file directly
-
-      # Optional: Display Function App URL
-      - name: Display Function App URL
-        run: echo "Function App URL: ${{ steps.fa.outputs.app-url }}"
