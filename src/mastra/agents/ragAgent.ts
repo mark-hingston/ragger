@@ -1,10 +1,12 @@
 export const RAG_AGENT_NAME = "ragAgent";
 import { Agent } from "@mastra/core/agent";
 import { llmModel } from "../providers";
+import { Memory } from "@mastra/memory";
 
 export const ragAgent = new Agent({
   name: RAG_AGENT_NAME,
   model: llmModel,
+  memory: new Memory(),
   instructions: `You are an expert assistant explaining a codebase.
 Use the provided context snippets to answer the user's query accurately.
 Synthesize the information clearly and concisely.

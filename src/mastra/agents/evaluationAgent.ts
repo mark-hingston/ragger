@@ -2,10 +2,12 @@ export const EVALUATION_AGENT_NAME = "evaluationAgent";
 import { Agent } from "@mastra/core/agent";
 import { z } from "zod";
 import { llmModel } from "../providers";
+import { Memory } from "@mastra/memory";
 
 export const evaluationAgent = new Agent({
   name: EVALUATION_AGENT_NAME,
   model: llmModel,
+  memory: new Memory(),
   instructions: `You are an impartial judge evaluating the quality of an AI-generated answer based on a user query and provided context snippets.
 Evaluate the generated answer based on the query and context using the following dimensions, scoring each from 0 (poor) to 1 (excellent):
 - Accuracy: Is the information factually correct based on the context?

@@ -18,6 +18,7 @@
     "@ai-sdk/openai-compatible": "^0.2.13",
     "@mastra/core": "^0.9.1",
     "@mastra/evals": "^0.1.20",
+    "@mastra/memory": "^0.3.1",
     "@mastra/rag": "^0.1.20",
     "@qdrant/js-client-rest": "^1.14.0",
     "ai": "^4.3.13",

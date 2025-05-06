@@ -2,10 +2,12 @@ export const QUERY_ENHANCER_AGENT_NAME = "queryEnhancerAgent";
 import { Agent } from "@mastra/core/agent";
 import { z } from "zod";
 import { llmModel } from "../providers";
+import { Memory } from "@mastra/memory";
 
 export const queryEnhancerAgent = new Agent({
   name: QUERY_ENHANCER_AGENT_NAME,
   model: llmModel,
+  memory: new Memory(),
   instructions: `You are an expert assistant analyzing user queries about a codebase.
 First, classify the query type based on the user's intent:
 1. Conceptual - Seeking explanations, 'how-to' guides, or understanding of concepts.
