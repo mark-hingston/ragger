@@ -61,7 +61,7 @@ import type {
   IndexStats,
   CreateIndexParams,
   UpsertVectorParams,
-  QueryVectorParams,
+  QueryVectorParams, // Will be replaced by extended version
   ParamsToArgs,
 } from "@mastra/core/vector";
 import type { VectorFilter } from "@mastra/core/vector/filter";
@@ -75,6 +75,16 @@ const DISTANCE_MAPPING: Record<string, Schemas["Distance"]> = {
   euclidean: "Euclid",
   dotproduct: "Dot",
 };
+
+// Extend QueryVectorParams to include sparse vector
+export interface QueryVectorParamsWithSparse extends QueryVectorParams {
+  querySparseVector?: {
+    name: string;
+    indices: number[];
+    values: number[];
+  };
+}
+
 
 export class QdrantVector extends MastraVector {
   private client: QdrantClient;
@@ -145,6 +155,17 @@ export class QdrantVector extends MastraVector {
         size: dimension,
         distance: DISTANCE_MAPPING[metric],
       },
+      // Assuming sparse vector configuration is handled by the embedder project
+      // or a separate setup script. If ragger needs to ensure this, add:
+      // sparse_vectors: {
+      //   'keyword_sparse': { // Must match the name used in embedder
+      //     index: {
+      //       type: 'sparse_hnsw',
+      //       m: 16,
+      //       ef_construct: 100,
+      //     }
+      //   }
+      // }
     });
   }
 
@@ -154,13 +175,14 @@ export class QdrantVector extends MastraVector {
   }
 
   async query(
-    ...args: ParamsToArgs<QueryVectorParams>
+    ...args: ParamsToArgs<QueryVectorParamsWithSparse> // Use extended params
   ): Promise<QueryResult[]> {
-    const params = this.normalizeArgs<QueryVectorParams>("query", args);
+    const params = this.normalizeArgs<QueryVectorParamsWithSparse>("query", args);
 
     const {
       indexName,
       queryVector,
+      querySparseVector, // Destructure sparse vector
       topK = 10,
       filter,
       includeVector = false,
@@ -168,32 +190,57 @@ export class QdrantVector extends MastraVector {
 
     const translatedFilter = this.transformFilter(filter) ?? {};
 
-    const results = (
-      await this.client.query(indexName, {
-        query: queryVector,
+    // Use client.query for hybrid queries
+    let queryRequest: Schemas["QueryRequest"] = {
         limit: topK,
         filter: translatedFilter,
         with_payload: true,
         with_vector: includeVector,
-      })
-    ).points;
+    };
+
+    if (querySparseVector && querySparseVector.indices.length > 0) {
+        console.log(`Performing hybrid search with sparse vector: ${querySparseVector.name}`);
+        queryRequest.query = { // Construct the query object for hybrid search
+            fusion: "rrf", // Use Reciprocal Rank Fusion for hybrid
+            queries: [
+                { vector: queryVector }, // Dense query part
+                { sparse: { indices: querySparseVector.indices, values: querySparseVector.values }, name: querySparseVector.name } // Sparse query part
+            ]
+        };
+    } else if (queryVector) {
+        console.log("Performing dense-only search.");
+        queryRequest.query = queryVector; // For dense-only search, query is the vector itself
+    } else {
+         throw new Error("Either queryVector or querySparseVector must be provided.");
+    }
+
+    // client.query returns { points: ScoredPoint[], ... }
+    const response = await this.client.query(indexName, queryRequest);
+    const results = response.points; // Extract results from the 'points' property
 
     return results.map((match) => {
       let vector: number[] = [];
       if (includeVector) {
+        // Qdrant's ScoredPoint vector can be an object (named vectors) or array (default vector)
         if (Array.isArray(match.vector)) {
-          // If it's already an array of numbers
           vector = match.vector as number[];
-        } else if (typeof match.vector === "object" && match.vector !== null) {
-          // If it's an object with vector data
-          vector = Object.values(match.vector).filter(
-            (v) => typeof v === "number"
-          );
+        } else if (typeof match.vector === 'object' && match.vector !== null) {
+          // If it's a named vector response, and we expect the default unnamed one
+          // This part might need adjustment based on how Qdrant returns the default dense vector
+          // when named sparse vectors are also present. Assuming it's still `match.vector` for the dense part.
+          // If 'vector' field is an object like { default: [...] }, then use match.vector.default
+          // For now, assuming match.vector is the dense vector if not an array.
+          // This might need refinement if Qdrant's response structure for hybrid search is more complex.
+          // A common pattern is that `vector` field holds the dense vector used in the `vector` param of SearchRequest.
+          const denseVectorData = (match.vector as Schemas["Vector"])?.valueOf(); // Attempt to get primitive if it's a Vector object
+          if (Array.isArray(denseVectorData)) {
+            vector = denseVectorData;
+          }
         }
       }
 
       return {
-        id: match.id as string,
+        id: match.id as string, // ID can be string or number, cast to string for QueryResult
         score: match.score || 0,
         metadata: match.payload as Record<string, any>,
         ...(includeVector && { vector }),

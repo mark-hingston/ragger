@@ -1,11 +1,13 @@
 import { createWorkflow } from "@mastra/core/workflows/vNext";
 import { z } from "zod";
 
-import { enhanceQueryStep } from "./steps/enhanceQueryStep";
+// import { enhanceQueryStep } from "./steps/enhanceQueryStep"; // R1.1: Removed
 import { getContextStep } from "./steps/getContextStep";
 import { decideRetrievalStep } from "./steps/decideRetrievalStep";
 import { generateResponseStep } from "./steps/generateResponseStep";
 import { evaluateAndRetryStep } from "./steps/evaluateAndRetryStep";
+import { transformQueryStep } from "./steps/transformQueryStep"; // R3.1: Added
+import { compressContextStep } from "./steps/compressContextStep"; // R3.2: Added
 
 export const RAG_WORKFLOW_ID = "ragWorkflow";
 
@@ -21,9 +23,11 @@ export const ragWorkflow = createWorkflow({
     isGrounded: z.boolean().optional(),
   }),
   steps: [
+    transformQueryStep,   // R3.1: Added
     decideRetrievalStep,
-    enhanceQueryStep,
+    // enhanceQueryStep,  // R1.1: Removed
     getContextStep,
+    compressContextStep,  // R3.2: Added
     generateResponseStep,
     evaluateAndRetryStep,
   ],
@@ -31,44 +35,44 @@ export const ragWorkflow = createWorkflow({
 
 // --- Workflow Logic ---
 ragWorkflow
-  // 1. Trigger -> decideRetrievalStep (Runs in parallel with enhanceQueryStep)
-  // This step determines the retrieval strategy and filter based on the initial user query.
+  // 1. Trigger -> transformQueryStep (New step for query transformation)
   .map({ userQuery: { initData: ragWorkflow, path: "userQuery" } })
+  .then(transformQueryStep)
+
+  // 2. transformQueryStep -> decideRetrievalStep
+  // This step determines the retrieval strategy and filter based on the (potentially transformed) user query.
+  .map({ userQuery: { step: transformQueryStep, path: "transformedQuery" } }) // Use transformed query
   .then(decideRetrievalStep)
 
-  // 2. Trigger -> enhanceQueryStep (Runs in parallel with decideRetrievalStep)
-  // This step generates a hypothetical document based on the initial user query.
+  // 3. transformQueryStep + decideRetrievalStep -> getContextStep
+  // queryText for getContextStep is now the transformedQuery.
   .map({
-    userQuery: { initData: ragWorkflow, path: "userQuery" }
-  })
-  .then(enhanceQueryStep)
-
-  // 3. enhanceQueryStep + decideRetrievalStep -> getContextStep
-  // This step uses the hypothetical document (from enhanceQueryStep), strategy, and filter (from decideRetrievalStep)
-  // to retrieve relevant context using the appropriate tool (via the retrievalAgent).
-  // This step will wait for both decideRetrievalStep and enhanceQueryStep to complete.
-  .map({
-    userQuery: { initData: ragWorkflow, path: "userQuery" },
-    queryText: { step: enhanceQueryStep, path: "hypotheticalDocument" },
-    // Map the entire output object of decideRetrievalStep to the 'decision' input
-    // Using path: '.' based on error messages requiring a path property
+    userQuery: { initData: ragWorkflow, path: "userQuery" }, // Keep original for reference if needed by other steps
+    queryText: { step: transformQueryStep, path: "transformedQuery" }, // Use transformed query for retrieval
     decision: { step: decideRetrievalStep, path: '.' },
   })
   .then(getContextStep)
 
-  // 4. Trigger + getContextStep -> generateResponseStep
-  // This step generates the final answer based on the original user query and the retrieved context.
+  // 4. getContextStep + transformQueryStep -> compressContextStep (New step for context compression)
   .map({
-    userQuery: { initData: ragWorkflow, path: "userQuery" },
+    userQuery: { step: transformQueryStep, path: "transformedQuery" }, // Use transformed query for compression context
     relevantContext: { step: getContextStep, path: "relevantContext" },
+  })
+  .then(compressContextStep)
+
+  // 5. transformQueryStep + compressContextStep -> generateResponseStep
+  // This step generates the final answer based on the (potentially transformed) user query and the (compressed) retrieved context.
+  .map({
+    userQuery: { step: transformQueryStep, path: "transformedQuery" }, // Use transformed query for generation
+    relevantContext: { step: compressContextStep, path: "finalCompressedContext" }, // Use compressed context
   })
   .then(generateResponseStep)
 
-  // 5. Trigger + getContextStep + generateResponseStep -> evaluateAndRetryStep
+  // 6. transformQueryStep + compressContextStep + generateResponseStep -> evaluateAndRetryStep
   // This step evaluates the generated answer and handles retry logic if necessary.
   .map({
-    userQuery: { initData: ragWorkflow, path: "userQuery" },
-    relevantContext: { step: getContextStep, path: "relevantContext" },
+    userQuery: { step: transformQueryStep, path: "transformedQuery" }, // Use transformed query for evaluation
+    relevantContext: { step: compressContextStep, path: "finalCompressedContext" }, // Use compressed context for evaluation
     generatedAnswer: { step: generateResponseStep, path: "answer" },
   })
   .then(evaluateAndRetryStep)

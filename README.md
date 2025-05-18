@@ -7,7 +7,8 @@ This project implements a Retrieval-Augmented Generation (RAG) system using the 
 *   **Retrieval-Augmented Generation (RAG):** Answers user queries using relevant context retrieved from a codebase vector store.
 *   **Vector Store:** Uses Qdrant for efficient storage and retrieval of code embeddings.
 *   **LLM Integration:** Utilises OpenAI models (like GPT-4o and GPT-4o Mini) via the Vercel AI SDK integration within Mastra for embedding generation, routing decisions, final answer generation, and evaluation.
-*   **Hypothetical Document Embeddings (HyDE):** Generates a hypothetical answer to the user's query first, then uses the embedding of that hypothetical answer for retrieval, potentially improving relevance. This feature can be toggled on/off using the `HYDE_ENABLED` environment variable.
+*   **Query Transformation:** Uses an agent to transform the user query for better retrieval, such as rephrasing or extracting keywords.
+*   **Context Compression:** Uses an agent to compress the retrieved context before passing it to the final answer generation step, reducing token usage and focusing on the most relevant information.
 *   **Dynamic Retrieval Routing:** An agent analyses the user query to decide between basic semantic search and metadata-filtered search in Qdrant.
 *   **Internal Re-ranking:** The `vectorQueryTool` internally re-ranks initial search results using the configured LLM provider before returning the final context, improving relevance without a separate external call.
 *   **LLM-as-a-Judge Evaluation:** Evaluates the generated answer's quality (accuracy, relevance, completeness) based on the query and retrieved context using a dedicated evaluation agent.
@@ -92,16 +93,17 @@ RETRY_THRESHOLD=0.6 # Score below which the workflow will attempt to retry gener
 The `ragWorkflow` is orchestrated by the `workflowAgent`. The core logic within the workflow is as follows:
 
 1.  **Trigger:** The `workflowAgent` receives the `userQuery` and triggers the `ragWorkflow` using the `ragWorkflowTool`. The workflow then receives the `userQuery`.
-2.  **Enhance Query (HyDE):** Uses `queryEnhancerAgent` to generate a `hypotheticalDocument` based on the `userQuery`.
-3.  **Decide Retrieval:** Uses `retrievalRouterAgent` (fed the original `userQuery`) to determine the retrieval `strategy` (e.g., 'basic', 'metadata', 'graph', 'documentation', 'example') and potentially a Qdrant `filter`.
-4.  **Get Context (Conditional Retrieval & Reranking):** This central step calls the `retrievalAgent`, passing the `userQuery`, `hypotheticalDocument`, `strategy`, and `filter`. The `retrievalAgent` is invoked with an explicit `toolChoice` option to select either `vectorQueryTool` or `graphRAGTool` based on the `strategy` determined in the previous step. The `hypotheticalDocument` is used as the input for the selected tool.
+2.  **Transform Query:** Uses `transformQueryStep` (which calls `queryTransformerAgent`) to potentially rephrase or enhance the `userQuery` for better retrieval.
+3.  **Decide Retrieval:** Uses `decideRetrievalStep` (which calls `retrievalRouterAgent`, fed the original `userQuery`) to determine the retrieval `strategy` (e.g., 'basic', 'metadata', 'graph', 'documentation', 'example', 'hierarchical') and potentially a Qdrant `filter`.
+4.  **Get Context (Conditional Retrieval & Reranking):** This central step (`getContextStep`) calls the `retrievalAgent`, passing the *transformed* query, the original `userQuery`, the determined `strategy`, and the `filter`. The `retrievalAgent` is invoked with an explicit `toolChoice` option to select either `vectorQueryTool` or `graphRAGTool` based on the `strategy`. The *transformed* query is used as the input for the selected tool.
     *   **If `strategy` is 'graph':** The `retrievalAgent` is instructed to use `graphRAGTool`.
-    *   **Otherwise (e.g., 'basic', 'metadata', 'documentation', 'example'):** The `retrievalAgent` is instructed to use `vectorQueryTool`. This tool performs a vector search using the `hypotheticalDocument` embedding and the provided `filter` (if applicable). Crucially, `vectorQueryTool` is configured with an *internal re-ranker* which automatically re-ranks the initial vector search results using the configured re-ranker LLM before returning the final `relevantContext`.
-5.  **Generate Response:** Uses `ragAgent`, providing the original `userQuery` and the final `relevantContext` (from either graph or vector+rerank), to generate an initial answer.
-6.  **Evaluate & Retry:**
-    *   Uses `evaluationAgent` to score the generated answer against the query and the final `relevantContext`.
+    *   **Otherwise (e.g., 'basic', 'metadata', 'documentation', 'example', 'hierarchical'):** The `retrievalAgent` is instructed to use `vectorQueryTool`. This tool performs a vector search using the embedding of the *transformed* query and the provided `filter` (if applicable). Crucially, `vectorQueryTool` is configured with an *internal re-ranker* which automatically re-ranks the initial vector search results using the configured re-ranker LLM before returning the initial `relevantContext`.
+5.  **Compress Context:** Uses `compressContextStep` (which calls `contextCompressorAgent`) to process the initial `relevantContext` and the original `userQuery`, extracting the most important information into a potentially smaller, more focused `compressedContext`.
+6.  **Generate Response:** Uses `generateResponseStep` (which calls `ragAgent`), providing the original `userQuery` and the `compressedContext`, to generate an initial answer.
+7.  **Evaluate & Retry:**
+    *   Uses `evaluateAndRetryStep` (which calls `evaluationAgent`) to score the generated answer against the original query and the `compressedContext`.
     *   Performs a basic groundedness check.
-    *   **If the score < `RETRY_THRESHOLD` (0.6):** Regenerates the answer using `ragAgent`, providing the original query, context, the *previous low-scoring answer*, and instructions to improve. The regenerated answer is then evaluated again.
+    *   **If the score < `RETRY_THRESHOLD` (0.6):** Regenerates the answer using `generateResponseStep` (calling `ragAgent` again), providing the original query, `compressedContext`, the *previous low-scoring answer*, and instructions to improve. The regenerated answer is then evaluated again by `evaluateAndRetryStep`.
     *   Outputs the final answer (either the initial one if the score was high enough, or the regenerated one) along with its final evaluation score and groundedness status.
 
 ### Workflow Diagram (Mermaid)
@@ -118,20 +120,22 @@ graph TD
     classDef conditional fill:#E8DAEF,stroke:#8E44AD,stroke-width:1px,color:#000,rounded:true,stroke-dasharray:5 5
 
     %% Workflow Steps
-    A[Trigger: userQuery]:::trigger --> B(enhanceQueryStep):::agentCall
-    A --> D(decideRetrievalStep):::agentCall
-    B -- Hypothetical Document --> CTX(getContextStep):::step
-    D -- Strategy & Filter --> CTX
+    A[Trigger: userQuery]:::trigger --> TQ(transformQueryStep):::step
+    A --> DR(decideRetrievalStep):::step
+    TQ -- Transformed Query --> CTX(getContextStep):::step
+    DR -- Strategy & Filter --> CTX
     CTX -- Calls retrievalAgent --> RA(retrievalAgent):::agentCall
-    RA -- Calls vectorQueryTool or graphRAGTool --> T(vectorQueryTool or graphRAGTool):::toolCall
-    T -- Relevant Context --> G(generateResponseStep):::agentCall
-    A --> G
-    G -- Initial Answer --> H(evaluateAndRetryStep):::agentCall
-    T -- Relevant Context --> H
-    A --> H
+    RA -- Calls vectorQueryTool or graphRAGTool --> TOOL(vectorQueryTool or graphRAGTool):::toolCall
+    TOOL -- Initial Relevant Context --> CC(compressContextStep):::step
+    A -- Original Query --> CC
+    CC -- Compressed Context --> G(generateResponseStep):::step
+    A -- Original Query --> G
+    G -- Initial Answer --> H(evaluateAndRetryStep):::step
+    CC -- Compressed Context --> H
+    A -- Original Query --> H
     H -- Score Check --> HC{Score < Threshold?}:::decision
-    HC -- Yes --> G_Retry(generateResponseStep w/ Feedback):::agentCall
-    G_Retry -- Regenerated Answer --> H_EvalRetry(evaluateAndRetryStep - Final Eval):::agentCall
+    HC -- Yes --> G_Retry(generateResponseStep w/ Feedback):::step
+    G_Retry -- Regenerated Answer --> H_EvalRetry(evaluateAndRetryStep - Final Eval):::step
     HC -- No --> I[Result: finalAnswer, evaluationScore, isGrounded?]:::result
     H_EvalRetry -- Final Answer --> I
 ```
