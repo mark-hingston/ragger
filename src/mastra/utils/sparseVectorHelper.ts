@@ -1,15 +1,12 @@
 // Helper for vocabulary loading and query processing logic for sparse vectors.
-// Replicates the token processing pipeline from the 'embedder' project's VocabularyBuilder.
 import fs from 'fs/promises';
 import path from 'path';
 import { processTextToFinalTokens } from "./tokenProcessor"
 
-// This is the vocabulary structure from the embedder project
 interface Vocabulary {
   [term: string]: number;
 }
 
-// Replicate the default set of stop words from embedder/src/vocabularyBuilder.ts
 
 /**
  * Loads the vocabulary from a JSON file.
@@ -32,8 +29,6 @@ export async function loadVocabulary(filePath: string): Promise<Vocabulary | und
 
 /**
  * Processes a query string to generate a sparse vector representation.
- * This function mirrors the token processing pipeline of the 'embedder' project's VocabularyBuilder
- * to ensure consistency for hybrid search.
  * @param query The user query string.
  * @param vocabulary The loaded vocabulary.
  * @param sparseVectorName The name for the sparse vector (e.g., 'keyword_sparse').
@@ -48,7 +43,6 @@ export function processQueryForSparseVector(
     return undefined;
   }
 
-  // Use the shared token processing function
   const processedTokensFinal: string[] = processTextToFinalTokens(query);
 
   const termFrequencies: { [term: string]: number } = {};
@@ -62,7 +56,7 @@ export function processQueryForSparseVector(
   for (const term in termFrequencies) {
     if (vocabulary[term] !== undefined) {
       indices.push(vocabulary[term]);
-      values.push(termFrequencies[term]); // Use term frequency as value
+      values.push(termFrequencies[term]);
     }
   }
 

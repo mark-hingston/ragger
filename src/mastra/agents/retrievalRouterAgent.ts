@@ -4,7 +4,7 @@ import { z } from "zod";
 import { llmModel } from "../providers";
 
 export const retrievalDecisionSchema = z.object({
-  strategy: z.enum(["basic", "metadata", "graph", "documentation", "example", "hierarchical"]) // R2.1: Added 'hierarchical'
+  strategy: z.enum(["basic", "metadata", "graph", "documentation", "example", "hierarchical"])
     .describe(`The chosen retrieval strategy:
 - 'basic': Default semantic search.
 - 'metadata': Filtered search based on explicit file types, paths, function/class names, or 'documentType' (e.g., 'file_summary', 'chunk_detail') mentioned in the query.
@@ -34,7 +34,6 @@ export const retrievalDecisionSchema = z.object({
       ? data.filter === null // This refine might need adjustment if hierarchical needs an initial filter for summaries
       : true,
   {
-    // R2.1: Adjusted message for hierarchical
     message: "Filter must be null for graph/basic strategies. For hierarchical, filter is for the initial summary search and can be null.",
     path: ["filter"],
   }

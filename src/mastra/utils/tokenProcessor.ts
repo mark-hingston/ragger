@@ -1,5 +1,5 @@
 import natural from 'natural';
-const PorterStemmer = natural.PorterStemmer; // Instance
+const PorterStemmer = natural.PorterStemmer;
 
 // Define a default set of stop words (Copied exactly from embedder/src/vocabularyBuilder.ts)
 const DEFAULT_STOP_WORDS: Set<string> = new Set([
@@ -57,7 +57,7 @@ function splitCompoundIdentifier(token: string): string[] {
  * @returns An array of processed, stemmed, and filtered tokens.
  */
 export function processTextToFinalTokens(text: string): string[] {
-  const stemmer = PorterStemmer; // Use the same stemmer instance
+  const stemmer = PorterStemmer;
 
   // Replicate the initial splitting logic from vocabularyBuilder, adapted for a raw string input
   const initialTokens = text
@@ -78,7 +78,7 @@ export function processTextToFinalTokens(text: string): string[] {
     }
 
     for (let tokenPartFromCompound of tokensForCompoundSplitting) {
-      const dotParts = tokenPartFromCompound.split('.'); // Split by dot
+      const dotParts = tokenPartFromCompound.split('.');
       for (const dotPart of dotParts) {
         if (dotPart.length === 0) continue;
 
@@ -184,9 +184,9 @@ export function processTextToFinalTokens(text: string): string[] {
           continue;
         }
         processedTokensFinal.push(stemmedToken);
-      } // Closes for (const dotPart of dotParts)
-    } // end loop over tokenPartFromCompound
-  } // end loop over originalToken
+      }
+    }
+  }
 
   return processedTokensFinal;
 }

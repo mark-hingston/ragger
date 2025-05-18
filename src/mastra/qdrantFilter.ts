@@ -83,10 +83,7 @@ import type {
  * - $empty -> is_empty check
  */
 export class QdrantFilterTranslator extends BaseFilterTranslator {
-  // Add regex sanitization method - less aggressive
   private sanitizeRegex(pattern: string): string {
-    // Escape characters that have special meaning in regex, but allow common ones like .*^$+?()[]{}|
-    // This is a more permissive sanitization based on common regex usage.
     return pattern.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
   }
 

@@ -13,8 +13,6 @@ export const transformQueryStep = createStep({
   // Output can be a single string or an object with sub-queries
   outputSchema: z.object({
     transformedQuery: z.string(), // For simplicity, assume single string output for now
-    // originalQuery: z.string(),
-    // subQueries: z.array(z.string()).nullable(),
   }),
   execute: async ({ inputData, mastra, runtimeContext }) => {
     console.debug(`Executing step: ${transformQueryStep.id}`);

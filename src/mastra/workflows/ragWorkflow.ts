@@ -1,7 +1,6 @@
 import { createWorkflow } from "@mastra/core/workflows/vNext";
 import { z } from "zod";
 
-// import { enhanceQueryStep } from "./steps/enhanceQueryStep"; // R1.1: Removed
 import { getContextStep } from "./steps/getContextStep";
 import { decideRetrievalStep } from "./steps/decideRetrievalStep";
 import { generateResponseStep } from "./steps/generateResponseStep";
@@ -25,7 +24,6 @@ export const ragWorkflow = createWorkflow({
   steps: [
     transformQueryStep,   // R3.1: Added
     decideRetrievalStep,
-    // enhanceQueryStep,  // R1.1: Removed
     getContextStep,
     compressContextStep,  // R3.2: Added
     generateResponseStep,

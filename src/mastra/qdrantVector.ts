@@ -61,7 +61,7 @@ import type {
   IndexStats,
   CreateIndexParams,
   UpsertVectorParams,
-  QueryVectorParams, // Will be replaced by extended version
+  QueryVectorParams,
   ParamsToArgs,
 } from "@mastra/core/vector";
 import type { VectorFilter } from "@mastra/core/vector/filter";
@@ -86,7 +86,6 @@ export interface QueryVectorParamsWithSparse extends QueryVectorParams {
   };
 }
 
-// Extend QdrantClientParams to include the env object
 interface QdrantVectorParams extends QdrantClientParams {
   env: typeof env;
 }
@@ -106,9 +105,9 @@ export class QdrantVector extends MastraVector {
     timeout = 300_000,
     checkCompatibility = true,
     ...args
-  }: QdrantVectorParams) { // Use the extended params interface
+  }: QdrantVectorParams) {
     super();
-    this.env = env; // Store the env object
+    this.env = env;
     const baseClient = new QdrantClient({
       host,
       port,
@@ -164,9 +163,9 @@ export class QdrantVector extends MastraVector {
         distance: DISTANCE_MAPPING[metric],
       },
     };
-    if (this.env.HYBRID_SEARCH_ENABLED) { // Use the stored env object
+    if (this.env.HYBRID_SEARCH_ENABLED) {
       collectionParams.sparse_vectors = {
-        ['keyword_sparse']: { // Use a default name as discussed
+        ['keyword_sparse']: {
           index: {
             type: 'sparse_hnsw', // Or other appropriate type
             m: 16,
@@ -184,14 +183,14 @@ export class QdrantVector extends MastraVector {
   }
 
   async query(
-    ...args: ParamsToArgs<QueryVectorParamsWithSparse> // Use extended params
+    ...args: ParamsToArgs<QueryVectorParamsWithSparse>
   ): Promise<QueryResult[]> {
     const params = this.normalizeArgs<QueryVectorParamsWithSparse>("query", args);
 
     const {
       indexName,
       queryVector,
-      querySparseVector, // Destructure sparse vector
+      querySparseVector,
       topK = 10,
       filter,
       includeVector = false,
@@ -208,11 +207,11 @@ export class QdrantVector extends MastraVector {
             filter: translatedFilter,
             with_payload: true,
             with_vector: includeVector,
-            query: { // Construct the query object for hybrid search
+            query: {
                 fusion: "rrf", // Use Reciprocal Rank Fusion for hybrid
                 queries: [
-                    { vector: queryVector }, // Dense query part
-                    { sparse: { indices: querySparseVector.indices, values: querySparseVector.values }, name: querySparseVector.name } // Sparse query part
+                    { vector: queryVector },
+                    { sparse: { indices: querySparseVector.indices, values: querySparseVector.values }, name: querySparseVector.name }
                 ]
             }
         };
@@ -221,7 +220,7 @@ export class QdrantVector extends MastraVector {
     } else if (queryVector) {
         console.log("Performing dense-only search.");
         const searchRequest: Schemas["SearchRequest"] = {
-            vector: queryVector, // For dense-only search, use the vector field
+            vector: queryVector,
             limit: topK,
             filter: translatedFilter,
             with_payload: true,
@@ -235,18 +234,10 @@ export class QdrantVector extends MastraVector {
     return results.map((match) => {
       let vector: number[] = [];
       if (includeVector) {
-        // Qdrant's ScoredPoint vector can be an object (named vectors) or array (default vector)
         if (Array.isArray(match.vector)) {
           vector = match.vector as number[];
         } else if (typeof match.vector === 'object' && match.vector !== null) {
-          // If it's a named vector response, and we expect the default unnamed one
-          // This part might need adjustment based on how Qdrant returns the default dense vector
-          // when named sparse vectors are also present. Assuming it's still `match.vector` for the dense part.
-          // If 'vector' field is an object like { default: [...] }, then use match.vector.default
-          // For now, assuming match.vector is the dense vector if not an array.
-          // This might need refinement if Qdrant's response structure for hybrid search is more complex.
-          // A common pattern is that `vector` field holds the dense vector used in the `vector` param of SearchRequest.
-          const denseVectorData = (match.vector as Schemas["Vector"])?.valueOf(); // Attempt to get primitive if it's a Vector object
+          const denseVectorData = (match.vector as Schemas["Vector"])?.valueOf();
           if (Array.isArray(denseVectorData)) {
             vector = denseVectorData;
           }
@@ -254,7 +245,7 @@ export class QdrantVector extends MastraVector {
       }
 
       return {
-        id: match.id as string, // ID can be string or number, cast to string for QueryResult
+        id: match.id as string,
         score: match.score || 0,
         metadata: match.payload as Record<string, any>,
         ...(includeVector && { vector }),
@@ -343,44 +334,13 @@ export class QdrantVector extends MastraVector {
   }
 
   async deleteIndexById(indexName: string, id: string): Promise<void> {
-    // Parse the ID - Qdrant supports both string and numeric IDs
     const pointId = this.parsePointId(id);
 
-    // Use the Qdrant client to delete the point from the collection
     await this.client.delete(indexName, {
       points: [pointId],
     });
   }
 
-  /**
-   * Parses and converts a string ID to the appropriate type (string or number) for Qdrant point operations.
-   *
-   * Qdrant supports both numeric and string IDs. This helper method ensures IDs are in the correct format
-   * before sending them to the Qdrant client API.
-   *
-   * @param id - The ID string to parse
-   * @returns The parsed ID as either a number (if string contains only digits) or the original string
-   *
-   * @example
-   * // Numeric ID strings are converted to numbers
-   * parsePointId("123") => 123
-   * parsePointId("42") => 42
-   * parsePointId("0") => 0
-   *
-   * // String IDs containing any non-digit characters remain as strings
-   * parsePointId("doc-123") => "doc-123"
-   * parsePointId("user_42") => "user_42"
-   * parsePointId("abc123") => "abc123"
-   * parsePointId("123abc") => "123abc"
-   * parsePointId("") => ""
-   * parsePointId("uuid-5678-xyz") => "uuid-5678-xyz"
-   *
-   * @remarks
-   * - This conversion is important because Qdrant treats numeric and string IDs differently
-   * - Only positive integers are converted to numbers (negative numbers with minus signs remain strings)
-   * - The method uses base-10 parsing, so leading zeros will be dropped in numeric conversions
-   * - reference: https://qdrant.tech/documentation/concepts/points/?q=qdrant+point+id#point-ids
-   */
   private parsePointId(id: string): string | number {
     // Try to parse as number if it looks like one
     if (/^\d+$/.test(id)) {
