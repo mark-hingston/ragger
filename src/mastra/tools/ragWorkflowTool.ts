@@ -21,8 +21,12 @@ export const ragWorkflowTool = createTool({
         },
       });
       
-      if (results.status !== "success")
-        throw new Error(`Workflow execution failed`);
+      if (results.status !== "success") {
+        if (results.status === "failed") {
+          throw new Error(`Workflow execution failed: ${results.error?.message || 'Unknown error'}`);
+        }
+        throw new Error(`Workflow execution failed with status: ${results.status}`);
+      }
 
       const evaluateAndRetryResult = results.steps.evaluateAndRetry;
 

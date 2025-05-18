@@ -12,31 +12,13 @@ interface Vocabulary {
 
 // Replicate the default set of stop words from embedder/src/vocabularyBuilder.ts
 const DEFAULT_STOP_WORDS: Set<string> = new Set([
-  // Common English stop words
+  // Common English stop words (reduced set)
   "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "if", "in", "into", "is", "it", "its", "no", "not", "of", "on", "or", "such", "that", "the", "their", "then", "there", "these", "they", "this", "to", "was", "will", "with", "about", "after", "all", "also", "am", "any", "because", "been", "before", "being", "can", "could", "did", "do", "does", "doing", "from", "further", "had", "has", "have", "he", "her", "here", "him", "his", "how", "however", "i", "just", "let", "me", "my", "myself", "nor", "our", "ours", "ourselves", "out", "over", "own", "same", "she", "should", "so", "some", "than", "thats", "them", "themselves", "those", "though", "through", "thus", "too", "us", "very", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "why", "would", "you", "your", "yours", "yourself", "yourselves", "yet",
   "test", "month",
 
-  // Common programming keywords
-  "abstract", "arguments", "async", "await", "boolean", "break", "case", "catch", "class", "const", "constructor", "continue", "debugger", "default", "delete", "else", "enum", "export", "extends", "false", "finally", "for", "function", "get", "implements", "import", "instanceof", "interface", "internal", "module", "new", "null", "object", "override", "package", "private", "protected", "public", "readonly", "record", "return", "sealed", "set", "static", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "true", "try", "type", "typeof", "undefined", "var", "virtual", "void", "volatile", "while", "yield", "using", "namespace", "task", "int", "bool",
-
-  // Logging & Console
-  "console", "log", "warn", "error", "debug", "info",
-
-  // XML-like tags (if they become tokens despite TreeSitter)
-  "summary", "param", "inheritdoc", "remarks", "returns", "exception", "typeparam", "see", "cref",
-
-  // Common build/config/file terms (if not desired)
-  "commit", "file", "path", "line", "index", "src", "dist", "ref", "refs", "head", "github", "workspace", "version", "name", "value", "target", "property", "itemgroup", "project", "sdk", "framework", "dependency", "echo", "bash", "run", "uses", "env", "steps", "script", "args", "output", "input", "displayname", "workingdirectory", "parameters", "variables", "http", "https", "api", "status", "message", "header", "content", "body", "docker", "image", "container", "deployment", "service", "ingress", "configmap", "secret", "volume", "mountpath", "replicas", "metadata", "labels", "spec", "kind", "apiversion",
-
-  // Specific terms identified as noise from previous vocabularies
-  "string", "context", "form", "number", "action", "text", "button", "label", "option", "json", "model", "config", "logger", "list", "item", "brand", "url", "view", "post", "host", "base",
-
-  // Generic/Common Programming Terms and Project Acronyms (add more if they are noisy)
-  "obj", "cpu", "commo", "utilitie", "client", "server", "user", "system", "data", "code", "key",
-  "trin", "pguk", "eac", "pgsa",
-
-  // JSON Keys (if they become separate tokens and are noisy)
-  "term_plural", "fuzzy",
+  // Minimal programming-related terms likely to be noise
+  "obj", "cpu", "commo", "utilitie",
+  "trin", "pguk", "eac", "pgsa", // Project-specific noise?
 
   // Test-Specific Terms and Common Low-Signal Words (many should be filtered by length or are actual stop words)
   "tobeinthedocument", "tohavebeencalled", "tobevisible", "tobehidden", "userevent", "expect", "div", "span", "id",

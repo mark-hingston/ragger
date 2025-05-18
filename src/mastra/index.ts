@@ -15,6 +15,7 @@ import {
 import { ragWorkflow } from "./workflows/ragWorkflow";
 
 const qdrantStore = new QdrantVector({
+  env: env, // Pass the env object
   host: env.QDRANT_HOST!,
   port: env.QDRANT_PORT,
   apiKey: env.QDRANT_API_KEY,

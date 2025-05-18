@@ -7,8 +7,8 @@ This project implements a Retrieval-Augmented Generation (RAG) system using the 
 *   **Retrieval-Augmented Generation (RAG):** Answers user queries using relevant context retrieved from a codebase vector store.
 *   **Vector Store:** Uses Qdrant for efficient storage and retrieval of code embeddings.
 *   **LLM Integration:** Utilises OpenAI models (like GPT-4o and GPT-4o Mini) via the Vercel AI SDK integration within Mastra for embedding generation, routing decisions, final answer generation, and evaluation.
-*   **Query Transformation:** Uses an agent to transform the user query for better retrieval, such as rephrasing or extracting keywords.
-*   **Context Compression:** Uses an agent to compress the retrieved context before passing it to the final answer generation step, reducing token usage and focusing on the most relevant information.
+*   **Query Transformation:** Uses `transformQueryStep` (which calls `queryTransformerAgent`) to potentially rephrase or enhance the `userQuery` for better retrieval.
+*   **Context Compression:** Uses `compressContextStep` (which calls `contextCompressorAgent`) to process the initial `relevantContext` and the original `userQuery`, extracting the most important information into a potentially smaller, more focused `compressedContext`.
 *   **Dynamic Retrieval Routing:** An agent analyses the user query to decide between basic semantic search and metadata-filtered search in Qdrant.
 *   **Internal Re-ranking:** The `vectorQueryTool` internally re-ranks initial search results using the configured LLM provider before returning the final context, improving relevance without a separate external call.
 *   **LLM-as-a-Judge Evaluation:** Evaluates the generated answer's quality (accuracy, relevance, completeness) based on the query and retrieved context using a dedicated evaluation agent.
@@ -71,7 +71,6 @@ QDRANT_COLLECTION_NAME=your_codebase_collection_name # IMPORTANT: Name of your Q
 
 # Workflow Configuration
 RETRY_THRESHOLD=0.6 # Score below which the workflow will attempt to retry generation
-+HYDE_ENABLED=false # Optional: Set to true to enable Hypothetical Document Embeddings (default: false)
 ```
 
 **Important:** Ensure `QDRANT_COLLECTION_NAME` matches the name of the collection where your code embeddings are stored, and `EMBEDDING_DIMENSIONS` matches your chosen `EMBEDDING_MODEL`.

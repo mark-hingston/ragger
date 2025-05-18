@@ -249,8 +249,9 @@ export class QdrantFilterTranslator extends BaseFilterTranslator {
         const customOp = this.translateCustomOperator(key, value, fieldKey);
         conditions.push(customOp);
       } else if (this.isOperator(key)) {
-        const opResult = this.translateOperatorValue(key, value);
-        if (opResult.range) {
+        // Pass the fieldKey to translateOperatorValue for operators that need it
+        const opResult = this.translateOperatorValue(key, value, fieldKey);
+        if (opResult?.range) { // Check if opResult is not null/undefined before accessing range
           Object.assign(range, opResult.range);
         } else {
           matchCondition = opResult;
@@ -326,7 +327,20 @@ export class QdrantFilterTranslator extends BaseFilterTranslator {
     }
   }
 
-  private translateOperatorValue(operator: string, value: any): any {
+  private translateOperatorValue(operator: string, value: any, fieldKey?: string): any {
+    // The 'exists' operator needs the fieldKey, others might not.
+    // Handle 'exists' specifically here as it's a bit different from standard value comparisons.
+    if (operator === "exists") {
+        if (!fieldKey) {
+            throw new Error(`'exists' operator requires a field key.`);
+        }
+        // "$exists": true -> field should exist (not null)
+        // "$exists": false -> field should not exist (is null)
+        return value
+            ? { must_not: [{ is_null: { key: fieldKey } }] }
+            : { is_null: { key: fieldKey } };
+    }
+
     const normalizedValue = this.normalizeComparisonValue(value);
 
     switch (operator) {
@@ -355,19 +369,12 @@ export class QdrantFilterTranslator extends BaseFilterTranslator {
             // allow_errors: false // Or true based on requirements - keeping as false for now
           },
         };
-      case "exists":
-        return value
-          ? {
-              must_not: [
-                { is_null: { key: value } },
-                { is_empty: { key: value } },
-              ],
-            }
-          : {
-              is_empty: { key: value },
-            };
       default:
-        throw new Error(`Unsupported operator: ${operator}`);
+        // For other operators, return the match or range condition
+        // Note: Range conditions are handled separately in handleFieldConditions
+        // This method primarily translates value-based match conditions.
+        // If we reach here with an operator that should be handled, it's an error in logic or unsupported.
+        throw new Error(`Unsupported operator or incorrect handling: ${operator}`);
     }
   }
 

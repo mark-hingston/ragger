@@ -68,6 +68,7 @@ import type { VectorFilter } from "@mastra/core/vector/filter";
 import { QdrantClient, QdrantClientParams } from "@qdrant/js-client-rest";
 import type { Schemas } from "@qdrant/js-client-rest";
 import { QdrantFilterTranslator } from "./qdrantFilter";
+import { env } from "../config"; // Import the env object
 
 const BATCH_SIZE = 256;
 const DISTANCE_MAPPING: Record<string, Schemas["Distance"]> = {
@@ -85,11 +86,17 @@ export interface QueryVectorParamsWithSparse extends QueryVectorParams {
   };
 }
 
+// Extend QdrantClientParams to include the env object
+interface QdrantVectorParams extends QdrantClientParams {
+  env: typeof env;
+}
 
 export class QdrantVector extends MastraVector {
   private client: QdrantClient;
+  private env: typeof env; // Store the env object
 
   constructor({
+    env, // Accept env in the constructor
     url,
     host,
     apiKey,
@@ -99,8 +106,9 @@ export class QdrantVector extends MastraVector {
     timeout = 300_000,
     checkCompatibility = true,
     ...args
-  }: QdrantClientParams = {}) {
+  }: QdrantVectorParams) { // Use the extended params interface
     super();
+    this.env = env; // Store the env object
     const baseClient = new QdrantClient({
       host,
       port,
@@ -150,23 +158,24 @@ export class QdrantVector extends MastraVector {
     if (!Number.isInteger(dimension) || dimension <= 0) {
       throw new Error("Dimension must be a positive integer");
     }
-    await this.client.createCollection(indexName, {
+    const collectionParams: Schemas["CreateCollection"] = {
       vectors: {
         size: dimension,
         distance: DISTANCE_MAPPING[metric],
       },
-      // Assuming sparse vector configuration is handled by the embedder project
-      // or a separate setup script. If ragger needs to ensure this, add:
-      // sparse_vectors: {
-      //   'keyword_sparse': { // Must match the name used in embedder
-      //     index: {
-      //       type: 'sparse_hnsw',
-      //       m: 16,
-      //       ef_construct: 100,
-      //     }
-      //   }
-      // }
-    });
+    };
+    if (this.env.HYBRID_SEARCH_ENABLED) { // Use the stored env object
+      collectionParams.sparse_vectors = {
+        ['keyword_sparse']: { // Use a default name as discussed
+          index: {
+            type: 'sparse_hnsw', // Or other appropriate type
+            m: 16,
+            ef_construct: 100,
+          }
+        }
+      };
+    }
+    await this.client.createCollection(indexName, collectionParams);
   }
 
   transformFilter(filter?: VectorFilter) {
@@ -190,33 +199,38 @@ export class QdrantVector extends MastraVector {
 
     const translatedFilter = this.transformFilter(filter) ?? {};
 
-    // Use client.query for hybrid queries
-    let queryRequest: Schemas["QueryRequest"] = {
-        limit: topK,
-        filter: translatedFilter,
-        with_payload: true,
-        with_vector: includeVector,
-    };
+    let results: Schemas["ScoredPoint"][];
 
     if (querySparseVector && querySparseVector.indices.length > 0) {
         console.log(`Performing hybrid search with sparse vector: ${querySparseVector.name}`);
-        queryRequest.query = { // Construct the query object for hybrid search
-            fusion: "rrf", // Use Reciprocal Rank Fusion for hybrid
-            queries: [
-                { vector: queryVector }, // Dense query part
-                { sparse: { indices: querySparseVector.indices, values: querySparseVector.values }, name: querySparseVector.name } // Sparse query part
-            ]
+        const queryRequest: Schemas["QueryRequest"] = {
+            limit: topK,
+            filter: translatedFilter,
+            with_payload: true,
+            with_vector: includeVector,
+            query: { // Construct the query object for hybrid search
+                fusion: "rrf", // Use Reciprocal Rank Fusion for hybrid
+                queries: [
+                    { vector: queryVector }, // Dense query part
+                    { sparse: { indices: querySparseVector.indices, values: querySparseVector.values }, name: querySparseVector.name } // Sparse query part
+                ]
+            }
         };
+        const response = await this.client.query(indexName, queryRequest);
+        results = response.points; // Extract results from the 'points' property
     } else if (queryVector) {
         console.log("Performing dense-only search.");
-        queryRequest.query = queryVector; // For dense-only search, query is the vector itself
+        const searchRequest: Schemas["SearchRequest"] = {
+            vector: queryVector, // For dense-only search, use the vector field
+            limit: topK,
+            filter: translatedFilter,
+            with_payload: true,
+            with_vector: includeVector,
+        };
+        results = await this.client.search(indexName, searchRequest); // client.search returns ScoredPoint[] directly
     } else {
          throw new Error("Either queryVector or querySparseVector must be provided.");
     }
-
-    // client.query returns { points: ScoredPoint[], ... }
-    const response = await this.client.query(indexName, queryRequest);
-    const results = response.points; // Extract results from the 'points' property
 
     return results.map((match) => {
       let vector: number[] = [];

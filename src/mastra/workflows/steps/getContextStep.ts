@@ -43,11 +43,11 @@ export const getContextStep = createStep({
 
       // Destructure from the input, including the nested decision object
       // queryText from inputData is now the original userQuery because HyDE is removed.
-      const { decision, queryText: originalUserQuery, userQuery: localUserQuery } = inputData;
+      const { decision, queryText: transformedQueryForRetrieval, userQuery: originalQueryFromWorkflowStart } = inputData;
       strategy = decision.strategy;
       filter = decision.filter;
-      queryTextForRetrieval = originalUserQuery; // Use original query for retrieval
-      userQuery = localUserQuery; // This is the same as originalUserQuery now
+      queryTextForRetrieval = transformedQueryForRetrieval; // Use transformed query for retrieval
+      userQuery = originalQueryFromWorkflowStart; // This is the original query from workflow start
 
 
       // Ensure strategy is defined before using it

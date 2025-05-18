@@ -30,7 +30,7 @@ export const retrievalDecisionSchema = z.object({
       .describe("Optional confidence score for the decision (0.0 to 1.0)."),
 }).refine(
   (data) =>
-    data.strategy === "graph" || data.strategy === "basic" || data.strategy === "hierarchical" // R2.1: Hierarchical might start with null filter for summaries
+    data.strategy === "graph" || data.strategy === "basic"
       ? data.filter === null // This refine might need adjustment if hierarchical needs an initial filter for summaries
       : true,
   {
@@ -79,7 +79,7 @@ export const retrievalRouterAgent = new Agent({
 *   **User Query:** "Tell me about the main services in this application."
     *   **Output:** \`{ "strategy": "hierarchical", "filter": null, "reasoning": "Broad query about main services, suitable for hierarchical search starting with summaries.", "confidence": 0.85 }\`
 *   **User Query:** "Find file summaries that mention 'payment processing'."
-    *   **Output:** \`{ "strategy": "metadata", "filter": { "must": [{ "key": "documentType", "match": { "value": "file_summary" }}, {"key": "summary", "match": {"text": "payment processing" }}]}, "reasoning": "Query asks for file summaries filtered by keywords in the summary text.", "confidence": 0.9 }\`
+    *   **Output:** \`{ "strategy": "metadata", "filter": { "$and": [ { "documentType": "file_summary" }, { "summary": { "$regex": "payment processing" } } ] }, "reasoning": "Query asks for file summaries filtered by keywords in the summary text.", "confidence": 0.9 }\`
 
 
 Analyse the user query provided and respond ONLY with a JSON object matching the specified schema. **Ensure the REQUIRED 'filter' field is correctly populated (either with a filter object or null) based *strictly* on the chosen strategy and rules above.** **Remember: \`filter\` must be \`null\` for 'basic', 'graph', and typically the initial phase of 'hierarchical' strategies.** Provide reasoning for your choice.`,
