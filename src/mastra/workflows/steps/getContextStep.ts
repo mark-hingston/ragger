@@ -75,7 +75,7 @@ export const getContextStep = createStep({
         try {
             const vocabulary = await loadVocabulary(env.VOCABULARY_FILE_PATH); // Load vocab
             if (vocabulary) {
-                querySparseVector = processQueryForSparseVector(queryTextForRetrieval, vocabulary, 'keyword_sparse');
+                querySparseVector = processQueryForSparseVector(queryTextForRetrieval, vocabulary, env.SPARSE_VECTOR_NAME);
                 console.log(`[getContextStep] Generated sparse vector for query: ${JSON.stringify(querySparseVector)}`);
             } else {
                 console.warn("[getContextStep] Vocabulary not loaded. Proceeding with dense search only.");
@@ -102,13 +102,19 @@ export const getContextStep = createStep({
         }
 
         console.log(`[Hierarchical] Querying file summaries with filter: ${JSON.stringify(summaryFilter)}`);
-        const summaryResponse = await agent.generate([{
-            role: 'user',
-            content: JSON.stringify({
-                tool: 'vectorQueryTool',
-                args: { queryText: queryTextForRetrieval, filter: summaryFilter, querySparseVector: summarySparseVector }
-            })
-        }], { runtimeContext, toolChoice: { type: 'tool', toolName: 'vectorQueryTool' } });
+        let summaryResponse;
+        try {
+            summaryResponse = await agent.generate([{
+                role: 'user',
+                content: JSON.stringify({
+                    tool: 'vectorQueryTool',
+                    args: { queryText: queryTextForRetrieval, filter: summaryFilter, querySparseVector: summarySparseVector }
+                })
+            }], { runtimeContext, toolChoice: { type: 'tool', toolName: 'vectorQueryTool' } });
+        } catch (error) {
+            console.error(`[Hierarchical] Failed to query file summaries: ${error}`);
+            summaryResponse = { toolResults: [] }; // Provide empty results to allow fallback
+        }
 
         const summaryToolResults = summaryResponse.toolResults;
         const topNFilePaths: string[] = [];
@@ -136,13 +142,19 @@ export const getContextStep = createStep({
                 ]
             };
             console.log(`[Hierarchical] Querying chunks with filter: ${JSON.stringify(chunkFilter)}`);
-            const chunkResponse = await agent.generate([{
-                role: 'user',
-                content: JSON.stringify({
-                    tool: 'vectorQueryTool',
-                    args: { queryText: queryTextForRetrieval, filter: chunkFilter, querySparseVector: querySparseVector }
-                })
-            }], { runtimeContext, toolChoice: { type: 'tool', toolName: 'vectorQueryTool' } });
+            let chunkResponse;
+            try {
+                chunkResponse = await agent.generate([{
+                    role: 'user',
+                    content: JSON.stringify({
+                        tool: 'vectorQueryTool',
+                        args: { queryText: queryTextForRetrieval, filter: chunkFilter, querySparseVector: querySparseVector }
+                    })
+                }], { runtimeContext, toolChoice: { type: 'tool', toolName: 'vectorQueryTool' } });
+            } catch (error) {
+                console.error(`[Hierarchical] Failed to query chunks: ${error}`);
+                chunkResponse = { toolResults: [] }; // Provide empty results to allow graceful degradation
+            }
 
             const chunkToolResults = chunkResponse.toolResults;
             if (Array.isArray(chunkToolResults)) {

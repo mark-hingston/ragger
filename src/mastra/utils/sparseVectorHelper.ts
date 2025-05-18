@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import natural from 'natural'; // Import natural for stemming
 const PorterStemmer = natural.PorterStemmer; // Use PorterStemmer
+import { processTokenText } from './tokenProcessor';
 
 // This is the vocabulary structure from the embedder project
 interface Vocabulary {

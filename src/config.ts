@@ -22,6 +22,7 @@ export const env = cleanEnv(process.env, {
   // R1.2: Hybrid Search configuration
   HYBRID_SEARCH_ENABLED: bool({ default: true, desc: 'Enable hybrid (dense + sparse) search' }),
   VOCABULARY_FILE_PATH: str({ default: "./vocabulary.json", desc: 'Path to the vocabulary file for sparse vectors' }),
+  SPARSE_VECTOR_NAME: str({ default: "keyword_sparse", desc: 'Name of the sparse vector field in Qdrant' }),
 
   // R1.4: Reranker configuration
   RERANKER_INITIAL_FETCH_K: num({ default: 50, desc: 'Initial number of documents to fetch for reranker' }),
