@@ -6,6 +6,8 @@ export const env = cleanEnv(process.env, {
   QDRANT_COLLECTION_NAME: str(),
   QDRANT_API_KEY: str({ default: undefined }),
   QDRANT_USE_HTTPS: bool({ default: true }),
+  AZURE_STORAGE_ACCOUNT_NAME: str({ default: undefined, desc: 'Azure Storage Account Name (optional, for shared key authentication)' }),
+  AZURE_STORAGE_ACCOUNT_KEY: str({ default: undefined, desc: 'Azure Storage Account Key (optional, for shared key authentication)' }),
   EMBEDDING_PROVIDER_NAME: str(),
   EMBEDDING_PROVIDER_BASE_URL: str(),
   EMBEDDING_PROVIDER_API_KEY: str(),
@@ -19,7 +21,7 @@ export const env = cleanEnv(process.env, {
   GROUNDEDNESS_THRESHOLD: num({ default: 0.7, desc: 'Cosine similarity threshold for groundedness check' }),
   
   HYBRID_SEARCH_ENABLED: bool({ default: true, desc: 'Enable hybrid (dense + sparse) search' }),
-  VOCABULARY_FILE_PATH: str({ default: "./vocabulary.json", desc: 'Path to the vocabulary file for sparse vectors' }),
+  VOCABULARY_FILE_PATH: str({ default: "./vocabulary.json", desc: 'Path or URL to the vocabulary.json file for sparse vectors' }),
   SPARSE_VECTOR_NAME: str({ default: "keyword_sparse", desc: 'Name of the sparse vector field in Qdrant' }),
 
   RERANKER_INITIAL_FETCH_K: num({ default: 50, desc: 'Initial number of documents to fetch for reranker' }),
